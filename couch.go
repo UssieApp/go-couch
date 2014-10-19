@@ -169,7 +169,7 @@ func (p Database) DeleteDatabase() error {
 }
 
 func (p Database) IsAdmin() bool {
-	ir := struct{ Admin bool `json:"ADMIN"` }
+	ir := struct{ Admin bool `json:"ADMIN"` }{}
 	_, err := interact("GET", fmt.Sprintf("%s/", p.BaseURL()), defaultHdrs, nil, &ir)
 	return err != nil && ir.Admin
 }
@@ -187,14 +187,13 @@ type User struct {
 
 func (p Database) User(name string) (User, error) {
 	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), name)
-	user := &User{}
-	_, err := interact("GET", u, defaultHdrs, nil, user)
+	user := User{}
+	_, err := interact("GET", u, defaultHdrs, nil, &user)
 	return user, err
 }
 
-func (p Database) SetUser(user User) error {
-	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), user.Name)
-	_, err := interact("PUT", u, defaultHdrs, user, nil)
+func (p Database) SetUser(jsonBuf []byte) error {
+	_, err := interact("POST", p.DBURL()+"/_user", defaultHdrs, jsonBuf, nil)
 	return err	
 }
 
@@ -212,14 +211,13 @@ type Role struct {
 
 func (p Database) Role(name string) (Role, error) {
 	u := fmt.Sprintf("%s/_role/%s",  p.DBURL(), name)
-	role := &Role{}
-	_, err := interact("GET", u, defaultHdrs, nil, role)
-	return user, err
+	role := Role{}
+	_, err := interact("GET", u, defaultHdrs, nil, &role)
+	return role, err
 }
 
-func (p Database) SetRole(role Role) error {
-	u := fmt.Sprintf("%s/_role/%s",  p.DBURL(), role.Name)
-	_, err := interact("PUT", u, defaultHdrs, role, nil)
+func (p Database) SetRole(jsonBuf []byte) error {
+	_, err := interact("POST", p.DBURL()+"/_role", defaultHdrs, jsonBuf, nil)
 	return err	
 }
 
@@ -229,10 +227,17 @@ func (p Database) DeleteRole(name string) error {
 	return err	
 }
 
-func (p Database) Session(name string) string, error {
-	user := &User{}
-	_, err := interact("POST", p.DBURL()+"/_session", defaultHdrs, user, nil)
-	return err		
+type Session struct {
+	Id string `json:"session_id"`
+	Expires time.Time `json:"expires"`
+	Cookie string `json:"cookie_name"`
+}
+
+func (p Database) Session(name string, ttl uint) (Session, error) {
+	user := fmt.Sprintf(`{ "name": "%s", "ttl": "%d" }`, name, ttl)
+	result := Session{}
+	_, err := interact("POST", p.DBURL()+"/_session", defaultHdrs, []byte(user), &result)
+	return result, err		
 }
 
 var (
@@ -246,8 +251,8 @@ func (p Database) Compact() error {
 }
 
 func (p Database) StartProfile(file string) error {
-	req := struct{ File string `json:"file"`}{ File: file }
-	_, err := interact("POST", p.BaseURL()+"/_profile", defaultHdrs, req, nil)
+	req := fmt.Sprintf(`{ "file": "%s" }`, file)
+	_, err := interact("POST", p.BaseURL()+"/_profile", defaultHdrs, []byte(req), nil)
 	if err != nil {
 		return errStartProfile
 	}
