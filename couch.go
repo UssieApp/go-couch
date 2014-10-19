@@ -168,6 +168,96 @@ func (p Database) DeleteDatabase() error {
 	return p.simpleOp("DELETE", p.DBURL(), errDelDB)
 }
 
+func (p Database) IsAdmin() bool {
+	ir := struct{ Admin bool `json:"ADMIN"` }
+	_, err := interact("GET", fmt.Sprintf("%s/", p.BaseURL()), defaultHdrs, nil, &ir)
+	return err != nil && ir.Admin
+}
+
+type User struct {
+	Name           string      `json:"name,omitempty"`
+	AdminChannels  []string    `json:"admin_channels"`
+	AdminRoles     []string    `json:"admin_roles"`
+	AllChannels    []string    `json:"all_channels,omitempty"`
+	Roles          []string    `json:"roles,omitempty"`
+	Email          []string    `json:"email,omitempty"`
+	Password       string      `json:"password,omitempty"`
+	Disabled       bool        `json:"disabled,omitempty"`
+}
+
+func (p Database) User(name string) (User, error) {
+	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), name)
+	user := &User{}
+	_, err := interact("GET", u, defaultHdrs, nil, user)
+	return user, err
+}
+
+func (p Database) SetUser(user User) error {
+	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), user.Name)
+	_, err := interact("PUT", u, defaultHdrs, user, nil)
+	return err	
+}
+
+func (p Database) DeleteUser(name string) error {
+	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), name)
+	_, err := interact("DELETE", u, defaultHdrs, nil, nil)
+	return err	
+}
+
+type Role struct {
+	Name           string      `json:"name,omitempty"`
+	AdminChannels  []string    `json:"admin_channels"`
+	AllChannels    []string    `json:"all_channels,omitempty"`
+}
+
+func (p Database) Role(name string) (Role, error) {
+	u := fmt.Sprintf("%s/_role/%s",  p.DBURL(), name)
+	role := &Role{}
+	_, err := interact("GET", u, defaultHdrs, nil, role)
+	return user, err
+}
+
+func (p Database) SetRole(role Role) error {
+	u := fmt.Sprintf("%s/_role/%s",  p.DBURL(), role.Name)
+	_, err := interact("PUT", u, defaultHdrs, role, nil)
+	return err	
+}
+
+func (p Database) DeleteRole(name string) error {
+	u := fmt.Sprintf("%s/_role/%s",  p.DBURL(), name)
+	_, err := interact("DELETE", u, defaultHdrs, nil, nil)
+	return err	
+}
+
+func (p Database) Session(name string) string, error {
+	user := &User{}
+	_, err := interact("POST", p.DBURL()+"/_session", defaultHdrs, user, nil)
+	return err		
+}
+
+var (
+	errCompact = errors.New("compact database operation returned not-OK")
+	errStartProfile = errors.New("start profile operation returned not-OK")
+	errStopProfile = errors.New("stop profile operation returned not-OK")
+)
+
+func (p Database) Compact() error {
+	return p.simpleOp("GET", p.BaseURL()+"/_compact", errCompact)
+}
+
+func (p Database) StartProfile(file string) error {
+	req := struct{ File string `json:"file"`}{ File: file }
+	_, err := interact("POST", p.BaseURL()+"/_profile", defaultHdrs, req, nil)
+	if err != nil {
+		return errStartProfile
+	}
+	return nil
+}
+
+func (p Database) StopProfile() error {
+	return p.simpleOp("GET", p.BaseURL()+"/_profile", errStopProfile)
+}
+
 var errNotRunning = errors.New("couchdb not running")
 
 // Connect to the database at the given URL.
