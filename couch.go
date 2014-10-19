@@ -192,7 +192,8 @@ func (p Database) User(name string) (User, error) {
 	return user, err
 }
 
-func (p Database) SetUser(jsonBuf []byte) error {
+func (p Database) SetUser(user User) error {
+	jsonBuf, _ := json.Marshal(user)
 	_, err := interact("POST", p.DBURL()+"/_user", defaultHdrs, jsonBuf, nil)
 	return err	
 }
@@ -216,7 +217,8 @@ func (p Database) Role(name string) (Role, error) {
 	return role, err
 }
 
-func (p Database) SetRole(jsonBuf []byte) error {
+func (p Database) SetRole(role Role) error {
+	jsonBuf, _ := json.Marshal(role)
 	_, err := interact("POST", p.DBURL()+"/_role", defaultHdrs, jsonBuf, nil)
 	return err	
 }
@@ -227,17 +229,18 @@ func (p Database) DeleteRole(name string) error {
 	return err	
 }
 
-type Session struct {
-	Id string `json:"session_id"`
+type session struct {
+	SessionId string `json:"session_id"`
 	Expires time.Time `json:"expires"`
-	Cookie string `json:"cookie_name"`
+	CookieName string `json:"cookie_name"`
 }
 
-func (p Database) Session(name string, ttl uint) (Session, error) {
+func (p Database) Session(name string, ttl uint) (http.Cookie, error) {
 	user := fmt.Sprintf(`{ "name": "%s", "ttl": "%d" }`, name, ttl)
-	result := Session{}
+	result := session{}
 	_, err := interact("POST", p.DBURL()+"/_session", defaultHdrs, []byte(user), &result)
-	return result, err		
+	cookie := http.Cookie{ Name: result.CookieName, Value: result.SessionId, Expires: result.Expires } 
+	return cookie, err		
 }
 
 var (
