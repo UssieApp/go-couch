@@ -176,11 +176,11 @@ func (p Database) IsAdmin() bool {
 
 type User struct {
 	Name           string      `json:"name,omitempty"`
-	AdminChannels  []string    `json:"admin_channels"`
+	Email          []string    `json:"email"`
+	AdminChannels  []string    `json:"admin_channels,omitempty"`
 	AdminRoles     []string    `json:"admin_roles"`
 	AllChannels    []string    `json:"all_channels,omitempty"`
 	Roles          []string    `json:"roles,omitempty"`
-	Email          []string    `json:"email,omitempty"`
 	Password       string      `json:"password,omitempty"`
 	Disabled       bool        `json:"disabled,omitempty"`
 }
@@ -230,13 +230,13 @@ func (p Database) DeleteRole(name string) error {
 }
 
 type session struct {
-	SessionId string `json:"session_id"`
+	SessionId string  `json:"session_id"`
 	Expires time.Time `json:"expires"`
 	CookieName string `json:"cookie_name"`
 }
 
 func (p Database) Session(name string, ttl uint) (http.Cookie, error) {
-	user := fmt.Sprintf(`{ "name": "%s", "ttl": "%d" }`, name, ttl)
+	user := fmt.Sprintf(`{ "name": "%s", "ttl": %d }`, name, ttl)
 	result := session{}
 	_, err := interact("POST", p.DBURL()+"/_session", defaultHdrs, []byte(user), &result)
 	cookie := http.Cookie{ Name: result.CookieName, Value: result.SessionId, Expires: result.Expires } 
