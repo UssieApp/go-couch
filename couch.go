@@ -176,12 +176,12 @@ func (p Database) IsAdmin() bool {
 
 type User struct {
 	Name           string      `json:"name,omitempty"`
-	Email          []string    `json:"email"`
+	Password       string      `json:"password"`
+	Email          []string    `json:"email,omitempty"`
 	AdminChannels  []string    `json:"admin_channels,omitempty"`
 	AdminRoles     []string    `json:"admin_roles"`
 	AllChannels    []string    `json:"all_channels,omitempty"`
 	Roles          []string    `json:"roles,omitempty"`
-	Password       string      `json:"password,omitempty"`
 	Disabled       bool        `json:"disabled,omitempty"`
 }
 
