@@ -176,10 +176,10 @@ func (p Database) IsAdmin() bool {
 
 type User struct {
 	Name           string      `json:"name,omitempty"`
-	Password       *string     `json:"password"`
+	Password       string      `json:"password,omitempty"`
 	Email          []string    `json:"email,omitempty"`
 	AdminChannels  []string    `json:"admin_channels,omitempty"`
-	AdminRoles     []string    `json:"admin_roles"`
+	AdminRoles     []string    `json:"admin_roles,omitempty"`
 	AllChannels    []string    `json:"all_channels,omitempty"`
 	Roles          []string    `json:"roles,omitempty"`
 	Disabled       bool        `json:"disabled,omitempty"`
@@ -192,9 +192,14 @@ func (p Database) User(name string) (User, error) {
 	return user, err
 }
 
+var errUserdataMissing = errors.New("username and password required")
 func (p Database) SetUser(user User) error {
+	if user.Name == "" || user.Password == "" {
+		return errUserdataMissing
+	}
+	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), user.Name)
 	jsonBuf, _ := json.Marshal(user)
-	_, err := interact("POST", p.DBURL()+"/_user", defaultHdrs, jsonBuf, nil)
+	_, err := interact("PUT", u, defaultHdrs, jsonBuf, nil)
 	return err	
 }
 
