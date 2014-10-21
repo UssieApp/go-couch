@@ -193,14 +193,18 @@ func (p Database) User(name string) (User, error) {
 }
 
 var errUserdataMissing = errors.New("username and password required")
-func (p Database) SetUser(user User) error {
+
+func (p Database) SetUser(user User) (int, error) {
 	if user.Name == "" || user.Password == "" {
-		return errUserdataMissing
+		return 0, errUserdataMissing
 	}
 	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), user.Name)
 	jsonBuf, _ := json.Marshal(user)
-	_, err := interact("PUT", u, defaultHdrs, jsonBuf, nil)
-	return err	
+	code, err := interact("PUT", u, defaultHdrs, jsonBuf, nil)
+	if code == 200 || code == 201 {
+		return code, nil
+	}
+	return code, err	
 }
 
 func (p Database) DeleteUser(name string) error {
