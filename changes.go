@@ -126,12 +126,13 @@ func (p Database) Changes(handler ChangeHandler,
 
 	since := options["since"]
 
-	heartbeatTime := i64defopt(options, "heartbeat", 5000)
+	heartbeatTime := i64defopt(options, "heartbeat", 0)
 
-	timeout := time.Minute
+	timeoutTime := i64defopt(options, "timeout", 60000)
 	if heartbeatTime > 0 {
-		timeout = time.Millisecond * time.Duration(heartbeatTime*2)
+		timeoutTime = heartbeatTime * 2
 	}
+	timeout := time.Millisecond * time.Duration(timeoutTime)
 
 	for {
 		params := url.Values{}
