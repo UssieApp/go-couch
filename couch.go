@@ -60,13 +60,22 @@ type idAndRev struct {
 	Rev string `json:"_rev"`
 }
 
+type CodedError struct {
+	err string
+	Code int
+}
+
+func (e *CodedError) Error() string {
+    return e.err
+}
+
 // Sends a query to CouchDB and parses the response back.
 // method: the name of the HTTP method (POST, PUT,...)
 // url: the URL to interact with
 // headers: additional headers to pass to the request
 // in: body of the request
 // out: a structure to fill in with the returned JSON document
-func interact(method, u string, headers map[string][]string, in []byte, out interface{}) (int, error) {
+func interact(method, u string, headers map[string][]string, in []byte, out interface{}) *CodedError {
 	fullHeaders := map[string][]string{}
 	for k, v := range headers {
 		fullHeaders[k] = v
@@ -77,7 +86,7 @@ func interact(method, u string, headers map[string][]string, in []byte, out inte
 
 	req, err := http.NewRequest(method, u, bytes.NewReader(in))
 	if err != nil {
-		return 0, err
+		return &CodedError{err.Error(), 0}
 	}
 
 	req.ContentLength = int64(len(in))
@@ -86,14 +95,18 @@ func interact(method, u string, headers map[string][]string, in []byte, out inte
 
 	res, err := HTTPClient.Do(req)
 	if err != nil {
-		return 0, err
+		return &CodedError{err.Error(), 0}
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return res.StatusCode, httputil.HTTPError(res)
+		return &CodedError{httputil.HTTPError(res).Error(), res.StatusCode}
 	}
-	return res.StatusCode, json.NewDecoder(res.Body).Decode(out)
+	err = json.NewDecoder(res.Body).Decode(out)
+	if err != nil {
+		return &CodedError{err.Error(), 0}
+	}
+	return nil
 }
 
 // Database represents operations available on an existing CouchDB
@@ -145,7 +158,7 @@ func (p Database) Exists() bool {
 
 func (p Database) simpleOp(method, url string, nokerr error) error {
 	ir := Response{}
-	if _, err := interact(method, url, defaultHdrs, nil, &ir); err != nil {
+	if err := interact(method, url, defaultHdrs, nil, &ir); err != nil {
 		return err
 	}
 	if !ir.Ok {
@@ -170,7 +183,7 @@ func (p Database) DeleteDatabase() error {
 
 func (p Database) IsAdmin() bool {
 	ir := struct{ Admin bool `json:"ADMIN"` }{}
-	_, err := interact("GET", fmt.Sprintf("%s/", p.BaseURL()), defaultHdrs, nil, &ir)
+	err := interact("GET", fmt.Sprintf("%s/", p.BaseURL()), defaultHdrs, nil, &ir)
 	return err != nil && ir.Admin
 }
 
@@ -188,29 +201,22 @@ type User struct {
 func (p Database) User(name string) (User, error) {
 	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), name)
 	user := User{}
-	_, err := interact("GET", u, defaultHdrs, nil, &user)
+	err := interact("GET", u, defaultHdrs, nil, &user)
 	return user, err
 }
 
-var errUserdataMissing = errors.New("username and password required")
-
-func (p Database) SetUser(user User) (int, error) {
+func (p Database) SetUser(user User) error {
 	if user.Name == "" || user.Password == "" {
-		return 0, errUserdataMissing
+		return &CodedError{"username and password required", 0}
 	}
 	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), user.Name)
 	jsonBuf, _ := json.Marshal(user)
-	code, err := interact("PUT", u, defaultHdrs, jsonBuf, nil)
-	if code == 200 || code == 201 {
-		return code, nil
-	}
-	return code, err	
+	return interact("PUT", u, defaultHdrs, jsonBuf, nil)
 }
 
 func (p Database) DeleteUser(name string) error {
 	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), name)
-	_, err := interact("DELETE", u, defaultHdrs, nil, nil)
-	return err	
+	return interact("DELETE", u, defaultHdrs, nil, nil)
 }
 
 type Role struct {
@@ -222,20 +228,19 @@ type Role struct {
 func (p Database) Role(name string) (Role, error) {
 	u := fmt.Sprintf("%s/_role/%s",  p.DBURL(), name)
 	role := Role{}
-	_, err := interact("GET", u, defaultHdrs, nil, &role)
+	err := interact("GET", u, defaultHdrs, nil, &role)
 	return role, err
 }
 
 func (p Database) SetRole(role Role) error {
 	jsonBuf, _ := json.Marshal(role)
-	_, err := interact("POST", p.DBURL()+"/_role", defaultHdrs, jsonBuf, nil)
-	return err	
+	u := fmt.Sprintf("%s/_role",  p.DBURL())
+	return interact("POST", u, defaultHdrs, jsonBuf, nil)
 }
 
 func (p Database) DeleteRole(name string) error {
 	u := fmt.Sprintf("%s/_role/%s",  p.DBURL(), name)
-	_, err := interact("DELETE", u, defaultHdrs, nil, nil)
-	return err	
+	return interact("DELETE", u, defaultHdrs, nil, nil)
 }
 
 type session struct {
@@ -247,9 +252,9 @@ type session struct {
 func (p Database) Session(name string, ttl uint) (http.Cookie, error) {
 	user := fmt.Sprintf(`{ "name": "%s", "ttl": %d }`, name, ttl)
 	result := session{}
-	_, err := interact("POST", p.DBURL()+"/_session", defaultHdrs, []byte(user), &result)
-	cookie := http.Cookie{ Name: result.CookieName, Value: result.SessionId, Expires: result.Expires } 
-	return cookie, err		
+	err := interact("POST", p.DBURL()+"/_session", defaultHdrs, []byte(user), &result)
+	cookie := http.Cookie{ Name: result.CookieName, Value: result.SessionId, Expires: result.Expires }
+	return cookie, err
 }
 
 var (
@@ -264,7 +269,7 @@ func (p Database) Compact() error {
 
 func (p Database) StartProfile(file string) error {
 	req := fmt.Sprintf(`{ "file": "%s" }`, file)
-	_, err := interact("POST", p.BaseURL()+"/_profile", defaultHdrs, []byte(req), nil)
+	err := interact("POST", p.BaseURL()+"/_profile", defaultHdrs, []byte(req), nil)
 	if err != nil {
 		return errStartProfile
 	}
@@ -364,7 +369,7 @@ func (p Database) Bulk(docs []interface{}) (results []Response, err error) {
 	}
 
 	results = make([]Response, 0, len(docs))
-	_, err = interact("POST", p.DBURL()+"/_bulk_docs", defaultHdrs, jsonBuf, &results)
+	err = interact("POST", p.DBURL()+"/_bulk_docs", defaultHdrs, jsonBuf, &results)
 	return
 }
 
@@ -390,7 +395,7 @@ func (p Database) Insert(d interface{}) (string, string, error) {
 // Private implementation of simple autogenerated-id insert
 func (p Database) insert(jsonBuf []byte) (string, string, error) {
 	ir := Response{}
-	if _, err := interact("POST", p.DBURL(), defaultHdrs, jsonBuf, &ir); err != nil {
+	if err := interact("POST", p.DBURL(), defaultHdrs, jsonBuf, &ir); err != nil {
 		return "", "", err
 	}
 	if !ir.Ok {
@@ -414,7 +419,7 @@ func (p Database) InsertWith(d interface{}, id string) (string, string, error) {
 func (p Database) insertWith(jsonBuf []byte, id string) (string, string, error) {
 	u := fmt.Sprintf("%s/%s", p.DBURL(), url.QueryEscape(id))
 	ir := Response{}
-	if _, err := interact("PUT", u, defaultHdrs, jsonBuf, &ir); err != nil {
+	if err := interact("PUT", u, defaultHdrs, jsonBuf, &ir); err != nil {
 		return "", "", err
 	}
 	if !ir.Ok {
@@ -442,7 +447,7 @@ func (p Database) Edit(d interface{}) (string, error) {
 	}
 	u := fmt.Sprintf("%s/%s", p.DBURL(), url.QueryEscape(idRev.ID))
 	ir := Response{}
-	if _, err = interact("PUT", u, defaultHdrs, jsonBuf, &ir); err != nil {
+	if err = interact("PUT", u, defaultHdrs, jsonBuf, &ir); err != nil {
 		return "", err
 	}
 	return ir.Rev, nil
@@ -487,7 +492,7 @@ func (p Database) Delete(id, rev string) error {
 	}
 	u := fmt.Sprintf("%s/%s", p.DBURL(), id)
 	ir := Response{}
-	if _, err := interact("DELETE", u, headers, nil, &ir); err != nil {
+	if err := interact("DELETE", u, headers, nil, &ir); err != nil {
 		return err
 	}
 	if !ir.Ok {

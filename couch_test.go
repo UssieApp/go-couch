@@ -131,10 +131,10 @@ func TestInteractGolden(t *testing.T) {
 	installClient(&http.Client{Transport: &m})
 
 	idr := idAndRev{}
-	n, err := interact("POST", u, map[string][]string{"X-What": []string{"a"}},
+	err := interact("POST", u, map[string][]string{"X-What": []string{"a"}},
 		[]byte{'{', '}'}, &idr)
-	if n != 200 || err != nil {
-		t.Fatalf("Error unmarshaling: %v/%v", n, err)
+	if err != nil {
+		t.Fatalf("Error unmarshaling: %v/%v", err.Code, err)
 	}
 
 	if m.hdrs.Get("Content-Type") != "application/json" {
@@ -158,14 +158,14 @@ func TestInteractBadResp(t *testing.T) {
 	installClient(&http.Client{Transport: &m})
 
 	idr := idAndRev{}
-	n, err := interact("POST", u, map[string][]string{}, []byte{'{', '}'}, &idr)
-	if n != 419 || err == nil {
-		t.Fatalf("Expected error 419, got: %v/%v", n, err)
+	err := interact("POST", u, map[string][]string{}, []byte{'{', '}'}, &idr)
+	if err == nil || err.Code != 419 {
+		t.Fatalf("Expected error 419, got: %v/%v", err.Code, err)
 	}
 }
 
 func TestInteractError(t *testing.T) {
-	_, err := interact("POST", "http://%", map[string][]string{}, nil, nil)
+	err := interact("POST", "http://%", map[string][]string{}, nil, nil)
 	if err == nil {
 		t.Fatalf("Successfully interacted with nothing?")
 	} else if !strings.Contains(err.Error(), "hexadecimal escape") {
@@ -174,7 +174,7 @@ func TestInteractError(t *testing.T) {
 }
 
 func TestInteractSchemeError(t *testing.T) {
-	_, err := interact("POST", "mailto:dustin@arpa.in", map[string][]string{}, nil, nil)
+	err := interact("POST", "mailto:dustin@arpa.in", map[string][]string{}, nil, nil)
 	if err == nil {
 		t.Fatalf("Successfully interacted with nothing?")
 	} else if !strings.Contains(err.Error(), "unsupported protocol") {
