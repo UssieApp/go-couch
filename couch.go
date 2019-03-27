@@ -198,14 +198,14 @@ type User struct {
 	Disabled       bool        `json:"disabled,omitempty"`
 }
 
-func (p Database) User(name string) (User, error) {
+func (p Database) User(name string) (User, *CodedError) {
 	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), name)
 	user := User{}
 	err := interact("GET", u, defaultHdrs, nil, &user)
 	return user, err
 }
 
-func (p Database) SetUser(user User) error {
+func (p Database) SetUser(user User) *CodedError {
 	if user.Name == "" || user.Password == "" {
 		return &CodedError{"username and password required", 0}
 	}
@@ -214,7 +214,7 @@ func (p Database) SetUser(user User) error {
 	return interact("PUT", u, defaultHdrs, jsonBuf, nil)
 }
 
-func (p Database) DeleteUser(name string) error {
+func (p Database) DeleteUser(name string) *CodedError {
 	u := fmt.Sprintf("%s/_user/%s",  p.DBURL(), name)
 	return interact("DELETE", u, defaultHdrs, nil, nil)
 }
@@ -225,20 +225,20 @@ type Role struct {
 	AllChannels    []string    `json:"all_channels,omitempty"`
 }
 
-func (p Database) Role(name string) (Role, error) {
+func (p Database) Role(name string) (Role, *CodedError) {
 	u := fmt.Sprintf("%s/_role/%s",  p.DBURL(), name)
 	role := Role{}
 	err := interact("GET", u, defaultHdrs, nil, &role)
 	return role, err
 }
 
-func (p Database) SetRole(role Role) error {
+func (p Database) SetRole(role Role) *CodedError {
 	jsonBuf, _ := json.Marshal(role)
 	u := fmt.Sprintf("%s/_role",  p.DBURL())
 	return interact("POST", u, defaultHdrs, jsonBuf, nil)
 }
 
-func (p Database) DeleteRole(name string) error {
+func (p Database) DeleteRole(name string) *CodedError {
 	u := fmt.Sprintf("%s/_role/%s",  p.DBURL(), name)
 	return interact("DELETE", u, defaultHdrs, nil, nil)
 }
@@ -249,7 +249,7 @@ type session struct {
 	CookieName string `json:"cookie_name"`
 }
 
-func (p Database) Session(name string, ttl uint) (http.Cookie, error) {
+func (p Database) Session(name string, ttl uint) (http.Cookie, *CodedError) {
 	user := fmt.Sprintf(`{ "name": "%s", "ttl": %d }`, name, ttl)
 	result := session{}
 	err := interact("POST", p.DBURL()+"/_session", defaultHdrs, []byte(user), &result)
